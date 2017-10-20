@@ -124,7 +124,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
       
       x_[0] = px;
       x_[1] = py;
-      x_[2] = v;
+      //x_[2] = v;
       R_ = R_radar_;
     }
     else if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
@@ -138,11 +138,9 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     /**
      Set Weights
     */  
-    double weight_0 = lambda_/(lambda_+n_aug_);
-    weights_(0) = weight_0;
+    weights_(0) = lambda_/(lambda_+n_aug_);
     for (int i=1; i<2*n_aug_+1; i++) {
-    double weight = 0.5/(n_aug_+lambda_);
-    weights_(i) = weight;
+    weights_(i) = 0.5/(n_aug_+lambda_);
     }
 
     previous_timestamp_ = meas_package.timestamp_;
@@ -219,7 +217,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   Xsig_aug.col(0)  = x_aug;
   for (int i = 0; i< n_aug_; i++)
   {
-    Xsig_aug.col(i+1)       = x_aug + sqrt(lambda_+n_aug_) * L.col(i);
+    Xsig_aug.col(i+1)        = x_aug + sqrt(lambda_+n_aug_) * L.col(i);
     Xsig_aug.col(i+1+n_aug_) = x_aug - sqrt(lambda_+n_aug_) * L.col(i);
   }
   cout <<"XSIG AUG"<<endl;
@@ -265,6 +263,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     px_p = px_p + 0.5*nu_a*delta_t*delta_t * cos(yaw);
     py_p = py_p + 0.5*nu_a*delta_t*delta_t * sin(yaw);
     v_p = v_p + nu_a*delta_t;
+
     yaw_p = yaw_p + 0.5*nu_yawdd*delta_t*delta_t;
     yawd_p = yawd_p + nu_yawdd*delta_t;
 
@@ -355,7 +354,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
     Zsig(2,i) = (p_x*v1 + p_y*v2 ) / sqrt(p_x*p_x + p_y*p_y);   //r_dot
     // Avoid division by 0
     if (Zsig(0, i) <0.001) {
-      Zsig(2, i) = (p_x * v1 + p_y * v2) / 0.001;
+      Zsig(2, i) = 0;
       }
     }
   R_ = R_radar_;
@@ -379,7 +378,12 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 
   //create matrix for sigma points in measurement space
   MatrixXd Zsig = MatrixXd(n_z, 2 * n_aug_ + 1);
-  Zsig = Xsig_pred_.block(0,0,n_z,2*n_aug_ + 1); // Block of size 2, 15 starting at 0,0
+//  Zsig = Xsig_pred_.block(0,0,n_z,2*n_aug_ + 1); // Block of size 2, 15 starting at 0,0
+    //transform sigma points into measurement space
+  for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //2n+1 simga points
+    Zsig(0, i) = Xsig_pred_(0, i);
+    Zsig(1, i) = Xsig_pred_(1, i);
+  }
   R_ = R_laser_;
   UpdateCommon(meas_package,n_z,Zsig);
   NIS_laser_ = NIS_;
@@ -420,7 +424,7 @@ void UKF::UpdateCommon(MeasurementPackage meas_package, int n_z, MatrixXd Zsig)
     // state difference
     VectorXd x_diff = Xsig_pred_.col(i) - x_;
     //angle normalization
-    NormalizeAngle(x_diff(3));
+    if(meas_package.sensor_type_ == MeasurementPackage::RADAR) NormalizeAngle(x_diff(3));
     Tc = Tc + weights_(i) * x_diff * z_diff.transpose();
   }
 
