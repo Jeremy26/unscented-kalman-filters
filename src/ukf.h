@@ -2,6 +2,7 @@
 #define UKF_H
 
 #include "measurement_package.h"
+#include "tools.h"
 #include "Eigen/Dense"
 #include <vector>
 #include <string>
@@ -32,7 +33,7 @@ public:
   MatrixXd Xsig_pred_;
 
   ///* time when the state is true, in us
-  long long time_us_;
+//  long long time_us_;
 
   ///* Process noise standard deviation longitudinal acceleration in m/s^2
   double std_a_;
@@ -67,6 +68,10 @@ public:
   ///* Sigma point spreading parameter
   double lambda_;
 
+  long long previous_timestamp_;
+
+  MatrixXd R_,R_radar_,R_laser_;
+  double NIS_, NIS_radar_, NIS_laser_;
 
   /**
    * Constructor
@@ -83,13 +88,17 @@ public:
    * @param meas_package The latest measurement data of either radar or laser
    */
   void ProcessMeasurement(MeasurementPackage meas_package);
-
+  void NormalizeAngle(double &phi);
   /**
    * Prediction Predicts sigma points, the state, and the state covariance
    * matrix
    * @param delta_t Time between k and k+1 in s
    */
   void Prediction(double delta_t);
+
+  MatrixXd GenerateSigmaPoints();
+  MatrixXd PredictSigmaPoints(MatrixXd Xsig_aug, double delta_t);
+  void PredictMeanAndCovariance();
 
   /**
    * Updates the state and the state covariance matrix using a laser measurement
@@ -102,6 +111,8 @@ public:
    * @param meas_package The measurement at k+1
    */
   void UpdateRadar(MeasurementPackage meas_package);
+
+  void UpdateCommon(MeasurementPackage meas_package,int n_z, MatrixXd Zsig);
 };
 
 #endif /* UKF_H */
