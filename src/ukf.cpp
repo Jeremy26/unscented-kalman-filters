@@ -7,7 +7,6 @@ using namespace std;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 using std::vector;
-
 /**
  * Initializes Unscented Kalman filter
  */
@@ -26,10 +25,10 @@ UKF::UKF() {
   P_ = MatrixXd(5, 5);
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 0.5;
+  std_a_ = 2;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 0.5;
+  std_yawdd_ = 0.3;
 
   // Laser measurement noise standard deviation position1 in m
   std_laspx_ = 0.15;
@@ -49,14 +48,13 @@ UKF::UKF() {
   // If this is the first measurement
   is_initialized_ = false;
 
-  // Initialize prediction matrix
-  Xsig_pred_ = MatrixXd(5,5);
-
   //Initialize state dimensions
   n_x_ = 5;
   n_aug_ = 7;
   lambda_ = 3 - n_aug_;
 
+   // Initialize prediction matrix
+  Xsig_pred_ = MatrixXd(n_x_,2*n_aug_+1);
   // Measurement noise covariance matrices initialization
   R_radar_ = MatrixXd(3, 3);
   R_radar_ << std_radr_*std_radr_, 0, 0,
@@ -99,9 +97,10 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
    ****************************************************************************/
   if (!is_initialized_) {
     // Initialize x_, P_,previous_time, anything else needed.
-    x_ = VectorXd(5);
+    x_ = VectorXd(n_x_);
     x_ << 0,0,0,0,0;
     P_ = MatrixXd(n_x_, n_x_);
+    // TRY 0.15 Initialization for row 1 and 2
     P_ << 1, 0, 0, 0, 0,
           0, 1, 0, 0, 0,
           0, 0, 1, 0, 0,
@@ -133,6 +132,10 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
       */
       x_[0] = meas_package.raw_measurements_[0];
       x_[1] = meas_package.raw_measurements_[1];
+      if (fabs(x_(0)) < 0.001 and fabs(x_(1)) < 0.001){
+          x_(0) = 0.001;
+          x_(1) = 0.001;
+      }
       R_ = R_laser_;
     }
     /**
@@ -191,10 +194,10 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
  MatrixXd UKF::GenerateSigmaPoints()
  {
    //create augmented mean vector
-  VectorXd x_aug = VectorXd(7);
+  VectorXd x_aug = VectorXd(n_aug_);
 
   //create augmented state covariance
-  MatrixXd P_aug = MatrixXd(7, 7);
+  MatrixXd P_aug = MatrixXd(n_aug_, n_aug_);
 
   //create sigma point matrix
   MatrixXd Xsig_aug = MatrixXd(n_aug_, 2 * n_aug_ + 1);
@@ -207,6 +210,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   //create augmented covariance matrix
   P_aug.fill(0.0);
   P_aug.topLeftCorner(5,5) = P_;
+  //Define Process Noise Covariance Q 
   P_aug(5,5) = std_a_*std_a_;
   P_aug(6,6) = std_yawdd_*std_yawdd_;
 
@@ -247,8 +251,8 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 
     //avoid division by zero
     if (fabs(yawd) > 0.001) {
-        px_p = p_x + v/yawd * ( sin (yaw + yawd*delta_t) - sin(yaw));
-        py_p = p_y + v/yawd * ( cos(yaw) - cos(yaw+yawd*delta_t) );
+        px_p = p_x + v/yawd * ( sin(yaw + yawd*delta_t) - sin(yaw));
+        py_p = p_y + v/yawd * ( cos(yaw) - cos(yaw+yawd*delta_t));
     }
     else {
         px_p = p_x + v*delta_t*cos(yaw);
@@ -287,6 +291,9 @@ void UKF::PredictMeanAndCovariance()
   for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //iterate over sigma points
     x_ = x_+ weights_(i) * Xsig_pred_.col(i);
   }
+  
+  //x_ = Xsig_pred_ * weights_; // vectorised sum
+
   cout<<"PREDICTED MEAN"<<endl;
   cout<<x_<<endl;
   //predicted state covariance matrix
@@ -310,8 +317,8 @@ void UKF::Prediction(double delta_t) {
   Complete this function! Estimate the object's location. Modify the state
   vector, x_. Predict sigma points, the state, and the state covariance matrix.
   */
-
-  MatrixXd Xsig_aug = GenerateSigmaPoints();
+  MatrixXd Xsig_aug = MatrixXd(n_aug_, 2 * n_aug_ + 1);
+  Xsig_aug = GenerateSigmaPoints();
   Xsig_pred_ = PredictSigmaPoints(Xsig_aug, delta_t);
   PredictMeanAndCovariance();
 }
@@ -349,7 +356,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
 
     // measurement model -- Conversion to cartesian
     Zsig(0,i) = sqrt(p_x*p_x + p_y*p_y);                        //r
-    if (p_x==0) p_x =0.001; // Treat atan2(0.0,0.0)
+    if (p_x<0.001) p_x = 0.001; // Treat atan2(0.0,0.0)
     Zsig(1,i) = atan2(p_y,p_x);                                 //phi
     Zsig(2,i) = (p_x*v1 + p_y*v2 ) / sqrt(p_x*p_x + p_y*p_y);   //r_dot
     // Avoid division by 0
@@ -378,7 +385,6 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 
   //create matrix for sigma points in measurement space
   MatrixXd Zsig = MatrixXd(n_z, 2 * n_aug_ + 1);
-//  Zsig = Xsig_pred_.block(0,0,n_z,2*n_aug_ + 1); // Block of size 2, 15 starting at 0,0
     //transform sigma points into measurement space
   for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //2n+1 simga points
     Zsig(0, i) = Xsig_pred_(0, i);
