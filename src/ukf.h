@@ -112,7 +112,10 @@ public:
    */
   void UpdateRadar(MeasurementPackage meas_package);
 
-  void UpdateCommon(MeasurementPackage meas_package,int n_z, MatrixXd Zsig);
+  /**
+   * Common Kalman Filter update
+   */
+  void UpdateCommon(MeasurementPackage meas_package,int n_z,MatrixXd Zsig);
 };
 
 #endif /* UKF_H */
