@@ -26,10 +26,10 @@ UKF::UKF() {
   P_ = MatrixXd(5, 5);
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 0.4;
+  std_a_ = 0.3;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 0.3;
+  std_yawdd_ = 0.8;
 
   // Laser measurement noise standard deviation position1 in m
   std_laspx_ = 0.15;
@@ -98,9 +98,8 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
    ****************************************************************************/
   if (!is_initialized_) {
     // Initialize x_, P_,previous_time, anything else needed.
-    // TRY 0.15 Initialization for row 1 and 2
-    P_ << 1, 0, 0, 0, 0,
-          0, 1, 0, 0, 0,
+    P_ << 0.15, 0, 0, 0, 0,
+          0, 0.15, 0, 0, 0,
           0, 0, 1, 0, 0,
           0, 0, 0, 1, 0,
           0, 0, 0, 0, 1;
@@ -126,12 +125,12 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
       */
       x_[0] = meas_package.raw_measurements_[0];
       x_[1] = meas_package.raw_measurements_[1];
-  /*    
+      
       if (fabs(x_(0)) < 0.001 and fabs(x_(1)) < 0.001){
           x_(0) = 0.001;
           x_(1) = 0.001;
       }
-  */
+  
       R_ = R_laser_;
     }
     /**
@@ -335,14 +334,14 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
 
     // measurement model -- Conversion to cartesian
     Zsig(0,i) = sqrt(p_x*p_x + p_y*p_y);                        //r
- //   if (p_x<0.001) p_x = 0.001; // Treat atan2(0.0,0.0)
+    //if (p_x<0.001) p_x = 0.001; // Treat atan2(0.0,0.0)
     Zsig(1,i) = atan2(p_y,p_x);                                 //phi
     Zsig(2,i) = (p_x*v1 + p_y*v2 ) / sqrt(p_x*p_x + p_y*p_y);   //r_dot
- /*   // Avoid division by 0
+    // Avoid division by 0
     if (Zsig(0, i) <0.001) {
       Zsig(2, i) = 0;
       }
-  */
+  
     }
   R_ = R_radar_;
   UpdateCommon(meas_package,n_z,Zsig);
